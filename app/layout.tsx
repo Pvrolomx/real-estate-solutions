@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Real Estate Solutions',
-  description: 'CRM para Brokers - Bahía de Banderas & PV',
+  description: 'CRM para Brokers - Bahía de Banderas y PV',
 }
 
 export default function RootLayout({
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang=" es\>
- <body>{children}</body>
- </html>
- )
+    <html lang="es">
+      <body>{children}</body>
+    </html>
+  )
 }
