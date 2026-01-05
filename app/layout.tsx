@@ -1,9 +1,8 @@
-import './globals.css'
-import type { Metadata } from 'next'
+import "./globals.css"
 
-export const metadata: Metadata = {
-  title: 'Real Estate Solutions',
-  description: 'CRM para Brokers - Bahía de Banderas y PV',
+export const metadata = {
+  title: "Real Estate Solutions",
+  description: "CRM para Brokers",
 }
 
 export default function RootLayout({
