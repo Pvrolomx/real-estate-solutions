@@ -1,0 +1,82 @@
+generator client {
+  provider = " prisma-client-js\
+}
+
+datasource db {
+ provider = \sqlite\
+ url = \file:./dev.db\
+}
+
+model Client {
+ id String @id @default(cuid())
+ name String
+ email String?
+ phone String?
+ type String // BUYER, SELLER, BOTH
+ budget_min Float?
+ budget_max Float?
+ preferences String? // JSON: zonas, amenidades, etc
+ status String @default(\ACTIVE\) // ACTIVE, CLOSED, INACTIVE
+ notes String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ matches Match[]
+}
+
+model Property {
+ id String @id @default(cuid())
+ title String
+ address String
+ zone String // Bucerías, Nuevo Vallarta, etc
+ type String // CASA, DEPTO, TERRENO, COMERCIAL
+ price Float
+ priceUSD Float?
+ m2_total Float
+ m2_built Float?
+ bedrooms Int?
+ bathrooms Float?
+ amenities String? // JSON array
+ source String // AMPI, POCKET, MLS
+ sourceId String? // ID externo si aplica
+ status String @default(\ACTIVE\) // ACTIVE, SOLD, RESERVED
+ photos String? // JSON array URLs
+ notes String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ matches Match[]
+ taxCalcs TaxCalc[]
+}
+
+model Match {
+ id String @id @default(cuid())
+ clientId String
+ propertyId String
+ score Float // 0-100 compatibility
+ status String @default(\PENDING\) // PENDING, SHOWN, INTERESTED, REJECTED
+ notes String?
+ createdAt DateTime @default(now())
+ client Client @relation(fields: [clientId], references: [id])
+ property Property @relation(fields: [propertyId], references: [id])
+}
+
+model TaxCalc {
+ id String @id @default(cuid())
+ propertyId String?
+ type String // ISR, ISABI, IVA, AIRBNB
+ salePrice Float
+ purchasePrice Float?
+ purchaseDate DateTime?
+ result String // JSON con desglose
+ createdAt DateTime @default(now())
+ property Property? @relation(fields: [propertyId], references: [id])
+}
+
+model Comparativo {
+ id String @id @default(cuid())
+ propertyId String
+ comparables String // JSON array de IDs
+ avgPrice Float
+ pricePerM2 Float
+ analysis String?
+ createdAt DateTime @default(now())
+}
