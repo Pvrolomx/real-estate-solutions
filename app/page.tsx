@@ -20,6 +20,7 @@ const texts = {
     addressMx: "Direccion en Mexico", addressAbroad: "Direccion en Extranjero",
     occupation: "Ocupacion", company: "Empresa", curp: "CURP", rfc: "RFC",
     email: "Email", phone: "Telefono", ssn: "SS# / SIN#", save: "Guardar", cancel: "Cancelar",
+    processing: "Procesando OCR...", ocrSuccess: "Campos extraidos automaticamente",
   },
   en: {
     title: "Real Estate Solutions", subtitle: "CRM for Brokers - Bahia & PV",
@@ -35,6 +36,7 @@ const texts = {
     addressMx: "Address in Mexico", addressAbroad: "Address Abroad",
     occupation: "Occupation", company: "Company", curp: "CURP", rfc: "RFC",
     email: "Email", phone: "Phone", ssn: "SS# / SIN#", save: "Save", cancel: "Cancel",
+    processing: "Processing OCR...", ocrSuccess: "Fields extracted automatically",
   }
 }
 
@@ -44,6 +46,8 @@ export default function Home() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [ocrMessage, setOcrMessage] = useState("")
   const [formData, setFormData] = useState({
     name: "", dob: "", pob: "", nationality: "Mexico", immigration: "",
     passport: "", passportExp: "", passportVenc: "", marital: "Single",
@@ -70,6 +74,36 @@ export default function Home() {
   }
 
   const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value })
+  
+  const handleFileUpload = async (e: any) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    setIsProcessing(true)
+    setOcrMessage("")
+    
+    try {
+      const formDataUpload = new FormData()
+      formDataUpload.append("file", file)
+      
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        body: formDataUpload
+      })
+      
+      const data = await response.json()
+      
+      if (data.fields) {
+        setFormData(prev => ({ ...prev, ...data.fields }))
+        setOcrMessage(t.ocrSuccess)
+      }
+    } catch (error) {
+      console.error("OCR error:", error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
   const isInternational = formData.nationality !== "Mexico"
 
   const tabs = [
@@ -115,8 +149,9 @@ export default function Home() {
                 <h3 className="text-lg font-bold mb-4">{t.addClient}</h3>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t.uploadDoc}</label>
-                  <input type="file" accept=".pdf,.jpg,.png" className="w-full p-2 border rounded" />
-                  <p className="text-xs text-gray-500 mt-1">PDF o imagen para extraer datos automaticamente</p>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileUpload} className="w-full p-2 border rounded" disabled={isProcessing} />
+                  {isProcessing && <p className="text-blue-600 text-sm mt-1">{t.processing}</p>}
+                  {ocrMessage && <p className="text-green-600 text-sm mt-1">{ocrMessage}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">{t.name}</label><input name="name" value={formData.name} onChange={handleChange} className="w-full p-2 border rounded" /></div>
