@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 const texts = {
   es: {
@@ -18,6 +18,7 @@ const texts = {
     selectCalc: "Selecciona tipo de calculo",
     matchTitle: "Match Cliente-Propiedad",
     matchDesc: "Selecciona cliente para ver matches",
+    install: "Instalar App",
   },
   en: {
     title: "Real Estate Solutions",
@@ -35,13 +36,49 @@ const texts = {
     selectCalc: "Select calculation type",
     matchTitle: "Client-Property Match",
     matchDesc: "Select client to view matches",
+    install: "Install App",
   }
 }
 
 export default function Home() {
   const [tab, setTab] = useState("clientes")
   const [lang, setLang] = useState<"es" | "en">("es")
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isInstalled, setIsInstalled] = useState(false)
   const t = texts[lang]
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js")
+    }
+
+    const checkInstalled = () => {
+      if (window.matchMedia("(display-mode: standalone)").matches) {
+        setIsInstalled(true)
+      }
+    }
+    checkInstalled()
+
+    const handler = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener("beforeinstallprompt", handler)
+
+    window.addEventListener("appinstalled", () => setIsInstalled(true))
+
+    return () => window.removeEventListener("beforeinstallprompt", handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const result = await deferredPrompt.userChoice
+    if (result.outcome === "accepted") {
+      setIsInstalled(true)
+    }
+    setDeferredPrompt(null)
+  }
 
   const tabs = [
     { id: "clientes", label: t.clients, color: "bg-slate-600" },
@@ -57,12 +94,22 @@ export default function Home() {
           <h1 className="text-2xl font-bold">{t.title}</h1>
           <p className="text-slate-300 text-sm">{t.subtitle}</p>
         </div>
-        <button
-          onClick={() => setLang(lang === "es" ? "en" : "es")}
-          className="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm"
-        >
-          {lang === "es" ? "EN" : "ES"}
-        </button>
+        <div className="flex gap-2">
+          {!isInstalled && deferredPrompt && (
+            <button
+              onClick={handleInstall}
+              className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm"
+            >
+              {t.install}
+            </button>
+          )}
+          <button
+            onClick={() => setLang(lang === "es" ? "en" : "es")}
+            className="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm"
+          >
+            {lang === "es" ? "EN" : "ES"}
+          </button>
+        </div>
       </header>
 
       <nav className="bg-white shadow-md p-2 flex gap-2">
