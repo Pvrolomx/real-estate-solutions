@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.GOOGLE_VISION_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: "API key not configured", fields: {} }, { status: 200 })
+      return NextResponse.json({ error: "API key not configured", text: "", fields: {} }, { status: 200 })
     }
 
     const response = await fetch(
@@ -25,119 +25,107 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           requests: [{
             image: { content: base64 },
-            features: [{ type: "TEXT_DETECTION" }]
+            features: [{ type: "DOCUMENT_TEXT_DETECTION" }]
           }]
         })
       }
     )
 
     const data = await response.json()
-    const text = data.responses?.[0]?.fullTextAnnotation?.text || ""
     
-    console.log("OCR Text:", text)
-
+    if (data.error) {
+      return NextResponse.json({ error: data.error.message, text: "", fields: {} }, { status: 200 })
+    }
+    
+    const text = data.responses?.[0]?.fullTextAnnotation?.text || ""
     const fields = parseClientFields(text)
-    console.log("Parsed fields:", fields)
 
-    return NextResponse.json({ text, fields })
-  } catch (error) {
-    console.error("OCR Error:", error)
-    return NextResponse.json({ error: "OCR failed", fields: {} }, { status: 500 })
+    return NextResponse.json({ text, fields, rawLength: text.length })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message, text: "", fields: {} }, { status: 500 })
   }
 }
 
 function parseClientFields(text: string) {
   const fields: Record<string, string> = {}
   
-  // Normalize text - remove extra spaces and newlines
-  const normalized = text.replace(/\n/g, " ").replace(/\s+/g, " ")
+  // Keep original for some patterns
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l)
+  const flat = text.replace(/\n/g, " ").replace(/\s+/g, " ")
   
-  // Name - look for "Name:" followed by text until next field
-  const nameMatch = normalized.match(/Name:\s*([A-Za-z\s]+?)(?:\s*\*|\s*Date|\s*DOB|$)/i)
-  if (nameMatch) fields.name = nameMatch[1].trim()
+  // Name - after "Name:" until next label
+  let match = flat.match(/Name:\s*([A-Za-z\s]+?)(?=Date|DOB|Place|Nationality|\*|$)/i)
+  if (match) fields.name = match[1].trim()
 
-  // Date of Birth - various formats
-  const dobMatch = normalized.match(/(?:Date of Birth|DOB|Birth):\s*(\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2,4})/i)
-  if (dobMatch) fields.dob = formatDate(dobMatch[1])
+  // Date of Birth - handle "16 / 09 /19 42" format
+  match = flat.match(/(?:Date of Birth|DOB):\s*([\d\s\/]+?)(?=Place|Nationality|\*|$)/i)
+  if (match) {
+    const dobRaw = match[1].replace(/\s+/g, "").replace(/(\d{2})(\d{2})$/, "$1$2")
+    const parts = dobRaw.split("/")
+    if (parts.length >= 3) {
+      let day = parts[0].padStart(2, "0")
+      let month = parts[1].padStart(2, "0")
+      let year = parts[2]
+      if (year.length === 4 && year.startsWith("19")) {
+        // already good
+      } else if (year.length === 4) {
+        year = "19" + year.slice(2)
+      } else if (year.length === 2) {
+        year = parseInt(year) > 30 ? "19" + year : "20" + year
+      }
+      fields.dob = `${year}-${month}-${day}`
+    }
+  }
 
   // Place of Birth
-  const pobMatch = normalized.match(/Place of Birth:\s*([^*]+?)(?:\s*\*|\s*Nationality|$)/i)
-  if (pobMatch) fields.pob = pobMatch[1].trim()
+  match = flat.match(/Place of Birth:\s*([^*]+?)(?=Nationality|\*|$)/i)
+  if (match) fields.pob = match[1].trim()
 
   // Nationality
-  const natMatch = normalized.match(/Nationality:\s*([A-Za-z]+)/i)
-  if (natMatch) {
-    const nat = natMatch[1].trim()
-    if (nat.toUpperCase() === "USA" || nat.toUpperCase() === "US") fields.nationality = "USA"
-    else if (nat.toUpperCase() === "MEXICO" || nat.toUpperCase() === "MX") fields.nationality = "Mexico"
-    else if (nat.toUpperCase() === "CANADA" || nat.toUpperCase() === "CA") fields.nationality = "Canada"
-    else fields.nationality = nat
+  match = flat.match(/Nationality:\s*([A-Za-z]+)/i)
+  if (match) {
+    const n = match[1].toUpperCase()
+    if (n === "USA" || n === "US" || n === "AMERICAN") fields.nationality = "USA"
+    else if (n === "MEXICO" || n === "MEXICAN" || n === "MX") fields.nationality = "Mexico"
+    else if (n === "CANADA" || n === "CANADIAN" || n === "CA") fields.nationality = "Canada"
+    else fields.nationality = match[1]
   }
 
-  // Passport number - first number sequence after Passport:
-  const passMatch = normalized.match(/Passport:\s*(\d+)/i)
-  if (passMatch) fields.passport = passMatch[1].trim()
+  // Passport - number only
+  match = flat.match(/Passport:\s*(\d+)/i)
+  if (match) fields.passport = match[1]
 
   // Immigration Status
-  const immMatch = normalized.match(/Immigration Status:\s*([A-Za-z\s]+?)(?:\s*\*|\s*Marital|$)/i)
-  if (immMatch) fields.immigration = immMatch[1].trim()
+  match = flat.match(/Immigration Status:\s*([A-Za-z\s]+?)(?=Marital|Address|\*|$)/i)
+  if (match) fields.immigration = match[1].trim()
 
   // Marital Status
-  const marMatch = normalized.match(/Marital Status:\s*([A-Za-z]+)/i)
-  if (marMatch) fields.marital = marMatch[1].trim()
+  match = flat.match(/Marital Status:\s*([A-Za-z]+)/i)
+  if (match) fields.marital = match[1]
 
   // Address in Mexico
-  const addrMxMatch = normalized.match(/Address in Mexico:\s*([^*]+?)(?:\s*\*|\s*Address Abroad|$)/i)
-  if (addrMxMatch) fields.addressMx = addrMxMatch[1].trim()
+  match = flat.match(/Address in Mexico:\s*(.+?)(?=Address Abroad|\*|$)/i)
+  if (match) fields.addressMx = match[1].trim()
 
   // Address Abroad
-  const addrAbMatch = normalized.match(/Address Abroad:\s*([^*]+?)(?:\s*\*|\s*Occupation|$)/i)
-  if (addrAbMatch) fields.addressAbroad = addrAbMatch[1].trim()
+  match = flat.match(/Address Abroad:\s*(.+?)(?=Occupation|Name of|\*|$)/i)
+  if (match) fields.addressAbroad = match[1].trim()
 
   // Occupation
-  const occMatch = normalized.match(/Occupation:\s*([A-Za-z\s]+?)(?:\s*\*|\s*Name of|Company|$)/i)
-  if (occMatch) fields.occupation = occMatch[1].trim()
+  match = flat.match(/Occupation:\s*([A-Za-z\s]+?)(?=Name of|Company|Type|\*|$)/i)
+  if (match) fields.occupation = match[1].trim()
 
-  // Email - standard email pattern
-  const emailMatch = normalized.match(/Email:\s*([^\s*]+@[^\s*]+)/i)
-  if (emailMatch) fields.email = emailMatch[1].trim()
+  // Email
+  match = flat.match(/Email:\s*([^\s*]+@[^\s*]+)/i)
+  if (match) fields.email = match[1].toLowerCase()
 
-  // Phone - look for Cell Phone or Phone
-  const phoneMatch = normalized.match(/(?:Cell Phone|Phone|Tel):\s*([+\d\s()-]+)/i)
-  if (phoneMatch) fields.phone = phoneMatch[1].trim()
+  // Cell Phone
+  match = flat.match(/Cell Phone:\s*([+\d\s()-]+?)(?=SS|SIN|\*|$)/i)
+  if (match) fields.phone = match[1].trim()
 
-  // SS# or SIN#
-  const ssMatch = normalized.match(/SS\s*#?\s*(?:\(or SIN #\))?:\s*([\d\s]+)/i)
-  if (ssMatch) fields.ssn = ssMatch[1].replace(/\s/g, " ").trim()
-
-  // CURP
-  const curpMatch = normalized.match(/CURP:\s*([A-Z0-9]+)/i)
-  if (curpMatch && curpMatch[1] !== "N" && curpMatch[1] !== "NA") fields.curp = curpMatch[1].trim()
-
-  // RFC
-  const rfcMatch = normalized.match(/(?:RFC|Tax ID).*?:\s*([A-Z0-9]+)/i)
-  if (rfcMatch && rfcMatch[1] !== "N" && rfcMatch[1] !== "NA") fields.rfc = rfcMatch[1].trim()
+  // SS#
+  match = flat.match(/SS\s*#?\s*(?:\(or SIN #\))?:\s*([\d\s]+)/i)
+  if (match) fields.ssn = match[1].trim()
 
   return fields
-}
-
-function formatDate(dateStr: string): string {
-  const parts = dateStr.replace(/\s/g, "").split("/")
-  if (parts.length === 3) {
-    let day = parts[0].padStart(2, "0")
-    let month = parts[1].padStart(2, "0")
-    let year = parts[2]
-    
-    // Handle 2-digit year
-    if (year.length === 2) {
-      year = parseInt(year) > 50 ? "19" + year : "20" + year
-    }
-    // Handle split year like "19 42" -> "1942"
-    if (year.length === 4 && parseInt(year) < 1900) {
-      year = "19" + year.slice(2)
-    }
-    
-    return `${year}-${month}-${day}`
-  }
-  return ""
 }
