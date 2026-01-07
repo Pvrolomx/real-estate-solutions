@@ -4,4 +4,12 @@
 
 body {
   font-family: system-ui, sans-serif;
+  min-height: 100vh;
+  background-image: 
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95)),
+    url('/bg-hero.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
