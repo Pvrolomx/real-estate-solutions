@@ -18,19 +18,16 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1e293b" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <style>{`
+          body {
+            background: 
+              linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95)),
+              url('/bg-hero.png') center/cover no-repeat fixed;
+            min-height: 100vh;
+          }
+        `}</style>
       </head>
-      <body className="min-h-screen">
-        <div 
-          className="fixed inset-0 -z-10"
-          style={{
-            backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95)), url('/bg-hero.png')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
-          }}
-        />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
