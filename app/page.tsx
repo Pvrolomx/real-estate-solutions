@@ -168,7 +168,7 @@ export default function Home() {
   ]
 
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="min-h-screen bg-transparent">
       <header className="bg-slate-800 text-white p-4 flex justify-between items-center">
         <div><h1 className="text-2xl font-bold">{t.title}</h1><p className="text-slate-300 text-sm">{t.subtitle}</p></div>
         <div className="flex gap-2">

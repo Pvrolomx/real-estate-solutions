@@ -22,7 +22,7 @@ export default function RootLayout({
           body {
             background: 
               linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95)),
-              url('/bg-hero.jpg') center/cover no-repeat fixed;
+              url('/bg-hero.png') center/cover no-repeat fixed;
             min-height: 100vh;
           }
         `}</style>
